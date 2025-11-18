@@ -61,6 +61,14 @@ except ImportError:
   print("Install with: pip install pytz")
   pytz = None
 
+try:
+  from google.cloud import secretmanager
+  from google.cloud.exceptions import GoogleCloudError
+except ImportError as e:
+  print(f"WARNING: Google Cloud Secret Manager not installed. Secret Manager features disabled. Install with: pip install google-cloud-secret-manager. Error: {}", file=sys.stderr)
+  secretmanager = None
+  GoogleCloudError = type('GoogleCloudError', (Exception,), {})
+
 # ============================================================================
 # CONSTANTS
 # ============================================================================
@@ -274,6 +282,40 @@ class AuthenticationError(Exception):
   pass
 
 
+class GoogleSecretsManager:
+  """Handles retrieval of secrets from Google Secrets Manager."""
+  
+  def __init__(self, project_id: str, secret_id: str):
+    if not secretmanager:
+      raise ImportError("Google Cloud Secret Manager library not available.")
+    self.client = secretmanager.SecretManagerServiceClient()
+    self.secret_name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+    self.project_id = project_id
+    logger.info(f"Initialized GoogleSecretsManager for secret: {secret_id}")
+  
+  def get_credentials(self) -> Dict[str, str]:
+    """Retrieves Amazon Ads credentials from the specified secret."""
+    try:
+      response = self.client.access_secret_version(name=self.secret_name)
+      # Assuming the secret payload is a JSON string containing the credentials
+      secret_string = response.payload.data.decode('UTF-8')
+      credentials = json.loads(secret_string)
+      logger.info("Successfully retrieved Amazon Ads credentials from Google Secrets Manager.")
+      
+      # Expected keys: AMAZON_CLIENT_ID, AMAZON_CLIENT_SECRET, AMAZON_REFRESH_TOKEN
+      if not all(k in credentials for k in ["AMAZON_CLIENT_ID", "AMAZON_CLIENT_SECRET", "AMAZON_REFRESH_TOKEN"]):
+        logger.error("Secret payload missing required Amazon Ads keys.")
+        raise KeyError("Secret payload missing required Amazon Ads keys.")
+      
+      return credentials
+    except GoogleCloudError as e:
+      logger.error(f"Failed to retrieve secret from Google Secrets Manager: {}")
+      raise AuthenticationError(f"Failed to retrieve secrets: {}")
+    except json.JSONDecodeError as e:
+      logger.error(f"Failed to decode secret payload as JSON: {}")
+      raise AuthenticationError(f"Secret payload is not valid JSON: {}")
+
+
 class Config:
   """Configuration manager with enhanced error handling"""
   
@@ -408,10 +450,11 @@ class AmazonAdsAPI:
   """Amazon Advertising API client with retry logic and rate limiting"""
   
   def __init__(self, profile_id: str, region: str = "NA", max_requests_per_second: int = None,
-         session: requests.Session = None):
+         session: requests.Session = None, secrets_manager: Optional[GoogleSecretsManager] = None):
     self.profile_id = profile_id
     self.region = region.upper()
     self.base_url = ENDPOINTS.get(self.region, ENDPOINTS["NA"])
+    self.secrets_manager = secrets_manager
     # Initialize client_id from environment; will be refreshed in _authenticate
     self.client_id: Optional[str] = os.getenv("AMAZON_CLIENT_ID", "") or None
     self.auth = self._authenticate()
@@ -426,24 +469,32 @@ class AmazonAdsAPI:
     self._last_campaigns_error: Optional[Exception] = None
   
   def _authenticate(self) -> Auth:
-    """Authenticate and get access token"""
+    """Authenticate and get access token, prioritizing Secret Manager if available"""
     client_id = os.getenv("AMAZON_CLIENT_ID", "").strip()
     client_secret = os.getenv("AMAZON_CLIENT_SECRET", "").strip()
     refresh_token = os.getenv("AMAZON_REFRESH_TOKEN", "").strip()
     
+    # 1. Try Google Secrets Manager if available and environment variables are missing
+    if self.secrets_manager and not all([client_id, client_secret, refresh_token]):
+      logger.info("Attempting to load Amazon Ads credentials from Google Secrets Manager...")
+      try:
+        creds = self.secrets_manager.get_credentials()
+        client_id = creds.get("AMAZON_CLIENT_ID", "").strip()
+        client_secret = creds.get("AMAZON_CLIENT_SECRET", "").strip()
+        refresh_token = creds.get("AMAZON_REFRESH_TOKEN", "").strip()
+        logger.info("Successfully loaded credentials from Secret Manager.")
+      except AuthenticationError:
+        logger.warning("Secret Manager credentials could not be loaded. Falling back to environment variables.")
+    
+    # 2. Final check for required credentials
     if not all([client_id, client_secret, refresh_token]):
-      logger.error("Missing required environment variables for authentication")
+      logger.error("Missing required Amazon Ads credentials")
       raise AuthenticationError(
-        "Missing required environment variables: AMAZON_CLIENT_ID, "
-        "AMAZON_CLIENT_SECRET, or AMAZON_REFRESH_TOKEN"
+        "Missing required credentials: AMAZON_CLIENT_ID, AMAZON_CLIENT_SECRET, "
+        "or AMAZON_REFRESH_TOKEN not found in environment variables or Secret Manager."
       )
 
-    # Log credential status (masked)
-    logger.debug(f"Auth attempt - client_id: {client_id[:8] if client_id else 'MISSING'}..., "
-          f"client_secret: {'SET' if client_secret else 'MISSING'}, "
-          f"refresh_token: {refresh_token[:12] if refresh_token else 'MISSING'}...")
-
-    # Cache client ID for use in request headers (stripped of whitespace)
+    # Cache client ID for use in request headers
     self.client_id = client_id
     
     payload = {
@@ -2241,10 +2292,26 @@ class PPCAutomation:
     self.dry_run = dry_run
     self.bigquery_client = bigquery_client
     
+    # Initialize Secrets Manager if Google Cloud is configured
+    secrets_manager = None
+    google_project_id = self.config.get('google_cloud.project_id')
+    if google_project_id:
+      try:
+        secret_id = self.config.get('google_cloud.secret_id')
+        if secret_id and secretmanager:
+          secrets_manager = GoogleSecretsManager(google_project_id, secret_id)
+          logger.info("Google Secrets Manager initialized successfully.")
+      except Exception as e:
+        logger.warning(f"Failed to initialize Google Secrets Manager: {e}")
+    
     # Initialize API client with configurable rate limit (Optimized: Guide 1)
     region = self.config.get('api.region', 'NA')
     max_requests_per_second = self.config.get('api.max_requests_per_second', MAX_REQUESTS_PER_SECOND)
-    self.api = AmazonAdsAPI(profile_id, region, max_requests_per_second=max_requests_per_second)
+    self.api = AmazonAdsAPI(
+      profile_id, region, 
+      max_requests_per_second=max_requests_per_second,
+      secrets_manager=secrets_manager
+    )
     
     # Initialize audit logger
     audit_output_dir = self.config.get('logging.output_dir', './logs')
