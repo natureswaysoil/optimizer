@@ -48,6 +48,22 @@ pip install -r requirements.txt
 
 #### Set up Amazon Ads API credentials
 
+**Option 1: Using Google Secret Manager (Recommended for Production)**
+
+Store credentials securely in Google Secret Manager:
+
+```bash
+# Set your GCP project
+export GCP_PROJECT_ID="your-project-id"
+
+# Fetch credentials and connect to Amazon
+python fetch_and_connect.py
+
+# See GOOGLE_SECRETS_SETUP.md for complete setup guide
+```
+
+**Option 2: Using Environment Variables**
+
 Export your credentials as environment variables:
 
 ```bash
@@ -56,6 +72,8 @@ export AMAZON_CLIENT_SECRET="xxxxxxxx"
 export AMAZON_REFRESH_TOKEN="Atzr|IwEBxxxxxxxx"
 export AMAZON_PROFILE_ID="1780498399290938"
 ```
+
+**Option 3: Using .env File**
 
 Or create a `.env` file:
 
@@ -178,6 +196,60 @@ google_cloud:
 ```bash
 gcloud auth application-default login
 ```
+
+## 🔐 Using Google Secret Manager
+
+For secure credential management, you can store your Amazon Ads credentials in Google Secret Manager.
+
+### Quick Setup
+
+1. **Create the secret with your credentials**:
+
+```bash
+# Create credentials JSON
+cat > amazon-creds.json << 'EOF'
+{
+  "AMAZON_CLIENT_ID": "amzn1.application-oa2-client.xxxxx",
+  "AMAZON_CLIENT_SECRET": "your_secret",
+  "AMAZON_REFRESH_TOKEN": "Atzr|IwEBxxxxxxxx",
+  "AMAZON_PROFILE_ID": "1780498399290938"
+}
+EOF
+
+# Store in Secret Manager
+gcloud secrets create amazon-ads-credentials \
+  --data-file=amazon-creds.json \
+  --replication-policy="automatic"
+
+# Clean up
+rm amazon-creds.json
+```
+
+2. **Test the connection**:
+
+```bash
+export GCP_PROJECT_ID="your-project-id"
+python fetch_and_connect.py
+```
+
+3. **Configure ppc_config.yaml**:
+
+```yaml
+google_cloud:
+  project_id: "your-project-id"
+  secret_id: "amazon-ads-credentials"
+```
+
+The optimizer will automatically fetch credentials from Secret Manager when configured!
+
+### Full Documentation
+
+See **[GOOGLE_SECRETS_SETUP.md](GOOGLE_SECRETS_SETUP.md)** for:
+- Complete setup instructions
+- IAM permissions configuration
+- Troubleshooting guide
+- Security best practices
+- Cost information
 
 ## 📦 BigQuery Schema
 
