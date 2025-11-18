@@ -1,0 +1,79 @@
+# Amazon PPC Automation Configuration
+# =====================================
+
+# API Settings
+api:
+  region: "NA"  # Options: NA (North America), EU (Europe), FE (Far East)
+  max_requests_per_second: 10  # Amazon Ads API rate limit
+
+# Google Cloud Integration (Optional)
+google_cloud:
+  project_id: ""  # Your GCP project ID
+  secret_id: ""   # Secret Manager secret name for Amazon credentials
+  bigquery:
+    dataset_id: "amazon_ads_data"  # BigQuery dataset for storing PPC data
+
+# Feature Configuration
+features:
+  enabled:
+    - data_export  # Export data to BigQuery for dashboard
+    # - bid_optimization
+    # - dayparting
+    # - campaign_management
+    # - keyword_discovery
+    # - negative_keywords
+
+# Bid Optimization Settings
+bid_optimization:
+  enabled: true
+  report_days: 7
+  min_impressions: 100
+  target_acos: 0.30
+  max_bid_increase_percent: 20
+  max_bid_decrease_percent: 50
+  min_bid: 0.25
+  max_bid: 5.00
+
+# Dayparting Settings
+dayparting:
+  enabled: false
+  timezone: "America/Los_Angeles"
+  use_bigquery_data: false  # Set to true if using BigQuery for intelligent dayparting
+  schedule:
+    monday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    tuesday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    wednesday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    thursday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    friday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    saturday:
+      - {start: 8, end: 20, multiplier: 0.9}
+    sunday:
+      - {start: 8, end: 20, multiplier: 0.9}
+
+# Campaign Management Settings
+campaign_management:
+  enabled: false
+  acos_threshold: 0.45
+  min_spend: 20.0
+
+# Keyword Discovery Settings
+keyword_discovery:
+  enabled: false
+  min_search_volume: 100
+  max_keywords_per_ad_group: 50
+
+# Negative Keyword Settings
+negative_keywords:
+  enabled: false
+  min_spend_threshold: 10.0
+  max_acos_threshold: 0.60
+
+# Logging Settings
+logging:
+  output_dir: "./logs"
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR

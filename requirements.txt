@@ -1,0 +1,19 @@
+# Core Dependencies
+pyyaml>=6.0
+pytz>=2023.3
+requests>=2.31.0
+
+# Google Cloud (Optional - for BigQuery and Secret Manager)
+google-cloud-secret-manager>=2.16.0
+google-cloud-bigquery>=3.11.0
+
+# Dashboard Dependencies
+streamlit>=1.28.0
+pandas>=2.0.0
+plotly>=5.17.0
+altair>=5.1.0
+
+# Development Dependencies
+pytest>=7.4.0
+black>=23.9.0
+flake8>=6.1.0
