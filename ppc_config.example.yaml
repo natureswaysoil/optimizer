@@ -1,0 +1,103 @@
+# Amazon PPC Automation Configuration - Example with Google Secret Manager
+# =========================================================================
+# 
+# This example shows how to configure the optimizer to automatically fetch
+# credentials from Google Secret Manager.
+
+# API Settings
+api:
+  region: "NA"  # Options: NA (North America), EU (Europe), FE (Far East)
+  max_requests_per_second: 10  # Amazon Ads API rate limit
+
+# Google Cloud Integration - CONFIGURE THIS FOR AUTOMATIC CREDENTIAL FETCHING
+google_cloud:
+  # Set your GCP project ID and secret name to automatically fetch credentials
+  project_id: "your-gcp-project-id"  # Your Google Cloud Project ID
+  secret_id: "amazon-ads-credentials"   # Secret name in Secret Manager
+  
+  bigquery:
+    dataset_id: "amazon_ads_data"  # BigQuery dataset for storing PPC data
+
+# Feature Configuration
+features:
+  enabled:
+    - data_export  # Export data to BigQuery for dashboard
+    # - bid_optimization
+    # - dayparting
+    # - campaign_management
+    # - keyword_discovery
+    # - negative_keywords
+
+# Bid Optimization Settings
+bid_optimization:
+  enabled: true
+  report_days: 7
+  min_impressions: 100
+  target_acos: 0.30
+  max_bid_increase_percent: 20
+  max_bid_decrease_percent: 50
+  min_bid: 0.25
+  max_bid: 5.00
+
+# Dayparting Settings
+dayparting:
+  enabled: false
+  timezone: "America/Los_Angeles"
+  use_bigquery_data: false
+  schedule:
+    monday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    tuesday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    wednesday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    thursday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    friday:
+      - {start: 6, end: 22, multiplier: 1.0}
+    saturday:
+      - {start: 8, end: 20, multiplier: 0.9}
+    sunday:
+      - {start: 8, end: 20, multiplier: 0.9}
+
+# Campaign Management Settings
+campaign_management:
+  enabled: false
+  acos_threshold: 0.45
+  min_spend: 20.0
+
+# Keyword Discovery Settings
+keyword_discovery:
+  enabled: false
+  min_search_volume: 100
+  max_keywords_per_ad_group: 50
+
+# Negative Keyword Settings
+negative_keywords:
+  enabled: false
+  min_spend_threshold: 10.0
+  max_acos_threshold: 0.60
+
+# Logging Settings
+logging:
+  output_dir: "./logs"
+  level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
+
+# ==============================================================================
+# HOW TO USE THIS CONFIGURATION
+# ==============================================================================
+#
+# 1. Copy this file to ppc_config.yaml
+# 2. Update the google_cloud.project_id with your GCP project
+# 3. Ensure your Amazon credentials are stored in Secret Manager with the name
+#    specified in google_cloud.secret_id (default: amazon-ads-credentials)
+# 4. Run the optimizer:
+#    python optimizer_core.py --config ppc_config.yaml --profile-id YOUR_PROFILE_ID
+#
+# The optimizer will automatically:
+# - Connect to Google Secret Manager
+# - Fetch your Amazon Ads credentials
+# - Authenticate with Amazon API
+# - Run the configured features
+#
+# No need to set environment variables - everything is fetched automatically!

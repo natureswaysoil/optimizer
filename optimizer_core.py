@@ -61,6 +61,16 @@ except ImportError:
   print("Install with: pip install pytz")
   pytz = None
 
+# Google Cloud Secret Manager (optional)
+try:
+  from google.cloud import secretmanager
+  from google.cloud.exceptions import GoogleCloudError
+  SECRETMANAGER_AVAILABLE = True
+except ImportError:
+  secretmanager = None
+  GoogleCloudError = Exception
+  SECRETMANAGER_AVAILABLE = False
+
 # ============================================================================
 # CONSTANTS
 # ============================================================================
@@ -336,6 +346,102 @@ class Config:
         return default
     
     return value if value is not None else default
+
+
+# ============================================================================
+# GOOGLE SECRET MANAGER HELPER
+# ============================================================================
+
+def fetch_credentials_from_secret_manager(project_id: str, secret_id: str) -> Dict[str, str]:
+  """
+  Fetch Amazon Ads credentials from Google Secret Manager
+  
+  Args:
+    project_id: GCP project ID
+    secret_id: Secret name in Secret Manager
+    
+  Returns:
+    Dictionary with credential keys (AMAZON_CLIENT_ID, etc.)
+    
+  Raises:
+    ImportError: If Google Secret Manager library not available
+    GoogleCloudError: If unable to fetch secret
+    ValueError: If secret format is invalid
+  """
+  if not SECRETMANAGER_AVAILABLE:
+    raise ImportError(
+      "Google Cloud Secret Manager library not installed. "
+      "Install with: pip install google-cloud-secret-manager"
+    )
+  
+  logger.info(f"Fetching credentials from Google Secret Manager...")
+  logger.info(f"  Project: {project_id}")
+  logger.info(f"  Secret: {secret_id}")
+  
+  try:
+    # Create Secret Manager client
+    client = secretmanager.SecretManagerServiceClient()
+    
+    # Build the secret version name (use latest)
+    name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+    
+    # Access the secret
+    response = client.access_secret_version(request={"name": name})
+    
+    # Decode the secret payload
+    secret_string = response.payload.data.decode('UTF-8')
+    credentials = json.loads(secret_string)
+    
+    # Validate required keys
+    required_keys = [
+      'AMAZON_CLIENT_ID',
+      'AMAZON_CLIENT_SECRET',
+      'AMAZON_REFRESH_TOKEN',
+      'AMAZON_PROFILE_ID'
+    ]
+    
+    missing_keys = [key for key in required_keys if key not in credentials]
+    if missing_keys:
+      raise ValueError(
+        f"Secret '{secret_id}' is missing required keys: {', '.join(missing_keys)}. "
+        f"Required keys: {', '.join(required_keys)}"
+      )
+    
+    logger.info("✅ Successfully fetched credentials from Secret Manager")
+    
+    # Log credential status (masked)
+    for key in required_keys:
+      value = credentials[key]
+      if 'SECRET' in key or 'TOKEN' in key:
+        display_value = value[:8] + '...' if len(value) > 8 else '***'
+      else:
+        display_value = value[:20] + '...' if len(value) > 20 else value
+      logger.debug(f"  {key}: {display_value}")
+    
+    return credentials
+    
+  except GoogleCloudError as e:
+    logger.error(f"Failed to fetch credentials from Secret Manager: {e}")
+    logger.error(
+      "Troubleshooting:\n"
+      "1. Ensure you're authenticated: gcloud auth application-default login\n"
+      f"2. Verify the secret exists: gcloud secrets describe {secret_id}\n"
+      "3. Check IAM permissions: roles/secretmanager.secretAccessor required"
+    )
+    raise
+    
+  except json.JSONDecodeError as e:
+    logger.error(f"Secret '{secret_id}' is not valid JSON: {e}")
+    logger.error(
+      "The secret must be a JSON object with these keys:\n"
+      "{\n"
+      '  "AMAZON_CLIENT_ID": "amzn1.application-oa2-client.xxxxx",\n'
+      '  "AMAZON_CLIENT_SECRET": "your_secret",\n'
+      '  "AMAZON_REFRESH_TOKEN": "Atzr|IwEBxxxxxxxx",\n'
+      '  "AMAZON_PROFILE_ID": "1780498399290938"\n'
+      "}"
+    )
+    raise ValueError(f"Invalid JSON in secret '{secret_id}'") from e
 
 
 # ============================================================================
@@ -2240,6 +2346,33 @@ class PPCAutomation:
     self.profile_id = profile_id
     self.dry_run = dry_run
     self.bigquery_client = bigquery_client
+    
+    # Check if Google Secret Manager is configured
+    gcp_project_id = self.config.get('google_cloud.project_id')
+    secret_id = self.config.get('google_cloud.secret_id')
+    
+    if gcp_project_id and secret_id:
+      logger.info("Google Secret Manager configured - fetching credentials...")
+      try:
+        credentials = fetch_credentials_from_secret_manager(gcp_project_id, secret_id)
+        
+        # Set credentials as environment variables for AmazonAdsAPI to use
+        os.environ['AMAZON_CLIENT_ID'] = credentials['AMAZON_CLIENT_ID']
+        os.environ['AMAZON_CLIENT_SECRET'] = credentials['AMAZON_CLIENT_SECRET']
+        os.environ['AMAZON_REFRESH_TOKEN'] = credentials['AMAZON_REFRESH_TOKEN']
+        
+        # If profile_id not provided as argument, use from secret
+        if not profile_id:
+          self.profile_id = credentials['AMAZON_PROFILE_ID']
+          logger.info(f"Using profile ID from Secret Manager: {self.profile_id}")
+        
+        logger.info("✅ Credentials loaded from Google Secret Manager")
+        
+      except Exception as e:
+        logger.error(f"Failed to load credentials from Secret Manager: {e}")
+        logger.info("Falling back to environment variables...")
+    else:
+      logger.debug("Google Secret Manager not configured, using environment variables")
     
     # Initialize API client with configurable rate limit (Optimized: Guide 1)
     region = self.config.get('api.region', 'NA')

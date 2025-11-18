@@ -48,19 +48,23 @@ pip install -r requirements.txt
 
 #### Set up Amazon Ads API credentials
 
-**Option 1: Using Google Secret Manager (Recommended for Production)**
+**Option 1: Automatic from Google Secret Manager (Recommended - NEW! ✨)**
 
-Store credentials securely in Google Secret Manager:
+The optimizer automatically fetches credentials when you configure `ppc_config.yaml`:
 
 ```bash
-# Set your GCP project
-export GCP_PROJECT_ID="your-project-id"
+# 1. Store credentials in Secret Manager
+gcloud secrets create amazon-ads-credentials --data-file=creds.json
 
-# Fetch credentials and connect to Amazon
-python fetch_and_connect.py
+# 2. Edit ppc_config.yaml and set:
+#    google_cloud.project_id: "your-project-id"
+#    google_cloud.secret_id: "amazon-ads-credentials"
 
-# See GOOGLE_SECRETS_SETUP.md for complete setup guide
+# 3. Run - credentials fetched automatically!
+python optimizer_core.py --config ppc_config.yaml --profile-id YOUR_PROFILE_ID
 ```
+
+**That's it!** No environment variables needed. See [AUTOMATIC_CREDENTIALS.md](AUTOMATIC_CREDENTIALS.md) for details.
 
 **Option 2: Using Environment Variables**
 
