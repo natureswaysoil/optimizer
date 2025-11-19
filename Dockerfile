@@ -27,17 +27,17 @@ COPY optimizer_core.py .
 # Create necessary directories
 RUN mkdir -p logs
 
-# Expose Streamlit port
-EXPOSE 8501
+# Expose port (Cloud Run uses PORT env variable, default to 8080)
+EXPOSE 8080
 
-# Health check
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+# Health check (uses PORT env variable, default to 8080)
+HEALTHCHECK CMD curl --fail http://localhost:${PORT:-8080}/_stcore/health || exit 1
 
 # Set environment variables
-ENV STREAMLIT_SERVER_PORT=8501
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
 ENV STREAMLIT_SERVER_HEADLESS=true
 ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
 # Run dashboard
-CMD ["streamlit", "run", "dashboard.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Cloud Run sets PORT environment variable, default to 8080 if not set
+CMD streamlit run dashboard.py --server.port=${PORT:-8080} --server.address=0.0.0.0
