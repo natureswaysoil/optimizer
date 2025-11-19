@@ -26,6 +26,11 @@ jobs:
     name: Deploy to Cloud Run
     runs-on: ubuntu-latest
     
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
