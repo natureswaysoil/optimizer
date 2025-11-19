@@ -38,9 +38,9 @@ import sys
 import time
 import zipfile
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple, Set
+from typing import Any, Dict, List, Optional, Set
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import gzip
 import traceback
@@ -57,9 +57,8 @@ except ImportError as e:
 try:
   import pytz
 except ImportError:
-  print("WARNING: pytz is not installed. Dayparting will use server timezone (UTC).")
-  print("Install with: pip install pytz")
   pytz = None
+  # Warning will be logged when dayparting is actually used
 
 # Google Cloud Secret Manager (optional)
 try:
@@ -2294,7 +2293,7 @@ class NegativeKeywordManager:
       acos = (cost / sales) if sales > 0 else float('inf')
       
       # Check if ACOS is too high or if there are no sales and high spend
-      if not (acos > max_acos or (sales <= 0 and cost >= min_spend)):
+      if acos <= max_acos and not (sales <= 0 and cost >= min_spend):
         continue
       
       # Check if already negative

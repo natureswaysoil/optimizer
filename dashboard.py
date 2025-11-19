@@ -14,11 +14,8 @@ Usage:
   streamlit run dashboard.py
 """
 
-import os
-import sys
-import json
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict
 
 import streamlit as st
 import pandas as pd

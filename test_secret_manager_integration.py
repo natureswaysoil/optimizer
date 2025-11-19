@@ -12,7 +12,6 @@ Usage:
 
 import os
 import sys
-import yaml
 
 # Test if optimizer_core can be imported
 try:
