@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+
+# Test files
+test_*.py
+*_test.py
+
+# Documentation (not needed in container)
+*.md
+!README.md
+
+# Environment files
+.env
+.env.local
+
+# Credentials (should use Secret Manager instead)
+*credentials*.json
+service-account*.json
+
+# Build artifacts
+dist/
+build/

@@ -1,0 +1,51 @@
+# Google App Engine configuration for Amazon PPC Dashboard
+# Deploy with: gcloud app deploy
+
+runtime: python39
+
+# Entry point for Streamlit
+entrypoint: streamlit run dashboard.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+
+# Environment variables (update with your values)
+env_variables:
+  GCP_PROJECT_ID: "your-gcp-project-id"
+  DATASET_ID: "amazon_ads_data"
+  SECRET_ID: "amazon-ads-credentials"
+  STREAMLIT_SERVER_HEADLESS: "true"
+  STREAMLIT_BROWSER_GATHER_USAGE_STATS: "false"
+
+# Automatic scaling configuration
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.65
+  target_throughput_utilization: 0.65
+
+# Resource allocation
+resources:
+  cpu: 1
+  memory_gb: 2
+  disk_size_gb: 10
+
+# Health check
+liveness_check:
+  path: "/_stcore/health"
+  check_interval_sec: 30
+  timeout_sec: 4
+  failure_threshold: 2
+  success_threshold: 1
+
+readiness_check:
+  path: "/_stcore/health"
+  check_interval_sec: 5
+  timeout_sec: 4
+  failure_threshold: 2
+  success_threshold: 1
+  app_start_timeout_sec: 300
+
+# Handlers
+handlers:
+  - url: /.*
+    script: auto
+    secure: always
+    redirect_http_response_code: 301
