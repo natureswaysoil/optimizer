@@ -101,6 +101,12 @@ def load_data_from_bigquery(project_id: str, dataset_id: str) -> Dict[str, pd.Da
         campaign_performance = client.query(query_campaign_perf).to_dataframe()
         keyword_performance = client.query(query_keyword_perf).to_dataframe()
         
+        # Convert date columns to datetime for consistent comparisons
+        if 'report_date' in campaign_performance.columns:
+            campaign_performance['report_date'] = pd.to_datetime(campaign_performance['report_date'])
+        if 'report_date' in keyword_performance.columns:
+            keyword_performance['report_date'] = pd.to_datetime(keyword_performance['report_date'])
+        
         return {
             'campaign_budgets': campaign_budgets,
             'campaign_performance': campaign_performance,
@@ -619,13 +625,17 @@ def main():
         
         if len(date_range) == 2:
             start_date, end_date = date_range
+            # Convert date inputs to datetime for comparison
+            start_datetime = pd.to_datetime(start_date)
+            end_datetime = pd.to_datetime(end_date)
+            
             campaign_performance = campaign_performance[
-                (campaign_performance['report_date'] >= start_date) &
-                (campaign_performance['report_date'] <= end_date)
+                (campaign_performance['report_date'] >= start_datetime) &
+                (campaign_performance['report_date'] <= end_datetime)
             ]
             keyword_performance = keyword_performance[
-                (keyword_performance['report_date'] >= start_date) &
-                (keyword_performance['report_date'] <= end_date)
+                (keyword_performance['report_date'] >= start_datetime) &
+                (keyword_performance['report_date'] <= end_datetime)
             ]
     
     # Display last updated time

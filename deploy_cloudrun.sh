@@ -59,6 +59,10 @@ if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT}@${PROJECT_ID}.iam.
     echo "Granting permissions..."
     gcloud projects add-iam-policy-binding "$PROJECT_ID" \
         --member="serviceAccount:${SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
+        --role="roles/bigquery.user"
+    
+    gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+        --member="serviceAccount:${SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
         --role="roles/bigquery.dataViewer"
     
     gcloud projects add-iam-policy-binding "$PROJECT_ID" \
