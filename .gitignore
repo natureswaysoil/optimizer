@@ -32,13 +32,19 @@ ENV/
 *.swp
 *.swo
 *~
+
+# OS
 .DS_Store
+Thumbs.db
 
 # Logs and Database
 *.log
 logs/
 ppc_automation_*.log
 ppc_audit_*.csv
+
+# Backup files
+*.backup
 
 # Environment Variables
 .env
