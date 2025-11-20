@@ -39,7 +39,7 @@ jobs:
         run: |
           # Validate GCP_PROJECT_ID
           GCP_PROJECT_ID="${{ secrets.GCP_PROJECT_ID }}"
-          if [ -z "$GCP_PROJECT_ID" ] || [ "$GCP_PROJECT_ID" = "" ]; then
+          if [ -z "$GCP_PROJECT_ID" ]; then
             echo "::error::GCP_PROJECT_ID secret is not set or is empty. Please configure it in repository secrets."
             echo "Without a valid GCP_PROJECT_ID, the Docker image tag would be malformed (gcr.io//service-name:tag)"
             exit 1
@@ -47,14 +47,14 @@ jobs:
           
           # Validate GCP_SA_KEY
           GCP_SA_KEY="${{ secrets.GCP_SA_KEY }}"
-          if [ -z "$GCP_SA_KEY" ] || [ "$GCP_SA_KEY" = "" ]; then
+          if [ -z "$GCP_SA_KEY" ]; then
             echo "::error::GCP_SA_KEY secret is not set or is empty. Please configure it in repository secrets."
             exit 1
           fi
           
           echo "✓ All required secrets are properly configured"
-          echo "  - GCP_PROJECT_ID: ${GCP_PROJECT_ID:0:10}... (length: ${#GCP_PROJECT_ID})"
-          echo "  - GCP_SA_KEY: configured (length: ${#GCP_SA_KEY})"
+          echo "  - GCP_PROJECT_ID length: ${#GCP_PROJECT_ID} characters"
+          echo "  - GCP_SA_KEY length: ${#GCP_SA_KEY} characters"
       
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
