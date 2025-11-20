@@ -1,0 +1,99 @@
+# GitHub Actions workflow to deploy Amazon PPC Dashboard to Google Cloud Run
+# 
+# Setup:
+# 1. Create service account in GCP with Cloud Run Admin and Service Account User roles
+# 2. Create and download service account key
+# 3. Add GitHub secrets:
+#    - GCP_PROJECT_ID: Your Google Cloud project ID
+#    - GCP_SA_KEY: Service account key JSON (base64 encoded)
+#    - GCP_REGION: Deployment region (e.g., us-central1)
+
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+      - copilot/retrieve-data-and-build-dashboard
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  SERVICE_NAME: amazon-ppc-dashboard
+  REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.GCP_PROJECT_ID }}" ]; then
+            echo "::error::GCP_PROJECT_ID secret is not set. Please configure it in repository secrets."
+            exit 1
+          fi
+          if [ -z "${{ secrets.GCP_SA_KEY }}" ]; then
+            echo "::error::GCP_SA_KEY secret is not set. Please configure it in repository secrets."
+            exit 1
+          fi
+      
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          export_default_credentials: true
+      
+      - name: Configure Docker for GCR
+        run: |
+          gcloud auth configure-docker
+      
+      - name: Build and push Docker image
+        run: |
+          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} .
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }}
+      
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/${{ env.SERVICE_NAME }}:${{ github.sha }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars="GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" \
+            --memory=2Gi \
+            --cpu=1 \
+            --timeout=3600 \
+            --max-instances=10 \
+            --min-instances=1
+      
+      - name: Get service URL
+        id: get-url
+        run: |
+          SERVICE_URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --format="value(status.url)")
+          echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+          echo "Dashboard deployed to: $SERVICE_URL"
+      
+      - name: Comment PR with deployment URL
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 Dashboard deployed to Cloud Run: ${{ steps.get-url.outputs.url }}'
+            })
